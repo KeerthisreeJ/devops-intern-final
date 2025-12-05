@@ -1,0 +1,26 @@
+job "hello-devops" {
+  datacenters = ["dc1"]
+  type = "service"
+
+  group "hello-group" {
+    count = 1
+
+    task "hello-task" {
+      driver = "docker"
+
+      config {
+        image = "hello-devops:latest"
+      }
+
+      resources {
+        cpu    = 100  # 100 MHz
+        memory = 128  # 128 MB
+      }
+
+      logs {
+        max_files     = 5
+        max_file_size = 10
+      }
+    }
+  }
+}
