@@ -1,0 +1,100 @@
+
+===========================================
+    GRAFANA LOKI MONITORING SETUP
+===========================================
+
+STEP 1: Start Loki (Log aggregation system)
+-------------------------------------------
+docker run -d \
+  --name=loki \
+  -p 3100:3100 \
+  grafana/loki:latest
+
+
+STEP 2: Start Promtail (Log collector)
+-------------------------------------------
+First, create a config file for Promtail:
+
+Create promtail-config.yml:
+---
+server:
+  http_listen_port: 9080
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: varlogs
+          __path__: /var/log/*log
+---
+
+Then run Promtail:
+docker run -d \
+  --name=promtail \
+  -v $(pwd)/promtail-config.yml:/etc/promtail/config.yml \
+  -v /var/log:/var/log \
+  --link loki \
+  grafana/promtail:latest
+
+
+STEP 3: Query Logs via Loki API
+-------------------------------------------
+curl -G -s "http://localhost:3100/loki/api/v1/query_range" \
+  --data-urlencode 'query={job="varlogs"}' \
+  --data-urlencode 'limit=10' | python -m json.tool
+
+
+STEP 4: Start Grafana (Visualization)
+-------------------------------------------
+docker run -d \
+  --name=grafana \
+  -p 3000:3000 \
+  --link loki \
+  grafana/grafana:latest
+
+Access: http://localhost:3000
+Default login: admin / admin
+
+
+STEP 5: Configure Grafana
+-------------------------------------------
+1. Open http://localhost:3000
+2. Login (admin/admin)
+3. Add Data Source → Loki
+4. URL: http://loki:3100
+5. Save & Test
+6. Create Dashboard → Add Panel
+7. Query: {job="varlogs"}
+
+
+VERIFICATION COMMANDS:
+-------------------------------------------
+# Check if Loki is running
+docker ps | grep loki
+
+# Check if Promtail is running  
+docker ps | grep promtail
+
+# Check Loki logs
+docker logs loki
+
+# Stop all monitoring containers
+docker stop loki promtail grafana
+docker rm loki promtail grafana
+
+
+NOTES:
+-------------------------------------------
+- Loki receives logs on port 3100
+- Grafana UI is on port 3000
+- Promtail scrapes logs and forwards to Loki
+- All containers are linked together
+- Data is not persistent (restart will clear logs)
